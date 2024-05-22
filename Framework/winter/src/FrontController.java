@@ -5,11 +5,13 @@
  */
 package controller;
 
-import util.Util;
+import util.*;
 import java.util.List;
+import java.util.Map;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
@@ -22,7 +24,17 @@ import annotation.*;
  * @author Admin
  */
 public class FrontController extends HttpServlet {
-    private Boolean ifTraverse = false;
+    HashMap<String,Mapping> map;
+    public void init() throws ServletException {
+        try {
+            String package_name = this.getInitParameter("package_name");
+            map = Util.getAllClassesSelonAnnotation(package_name,ControllerAnnotation.class);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+    }
+    // private Boolean ifTraverse = false;
     // private List<String> controllerNames;
 
     // public void init() throws ServletException {
@@ -66,6 +78,8 @@ public class FrontController extends HttpServlet {
     protected void processRequest(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
             try{
+                String stringUrl = request.getRequestURL().toString();
+                Boolean ifUrlExist = false;
                 PrintWriter out = response.getWriter();
                 out.println("<!DOCTYPE html>");
                 out.println("<html>");
@@ -74,24 +88,33 @@ public class FrontController extends HttpServlet {
                 out.println("</head>");
                 out.println("<body>");
                 out.println("<p>Bienvenue</p>");
-                out.println("<h1>Servlet at " + request.getRequestURL() + "</h1>");
+                // out.println("<h1>Servlet at " + request.getRequestURL() + "</h1>");
                 
-                List<String> controllerNames = new ArrayList<>();
-                if (!ifTraverse) {
-                    try {
-                        String package_name = this.getInitParameter("package_name");
-                        controllerNames = Util.getAllClassesSelonAnnotation(package_name,ControllerAnnotation.class);
-                        ifTraverse = true;
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                        out.println("Erreur lors du scan du package : " + e.getMessage());
+                // List<String> controllerNames = new ArrayList<>();
+                // if (!ifTraverse) {
+                //     try {
+                //         String package_name = this.getInitParameter("package_name");
+                //         controllerNames = Util.getAllClassesSelonAnnotation(package_name,ControllerAnnotation.class);
+                //         ifTraverse = true;
+                //     } catch (Exception e) {
+                //         e.printStackTrace();
+                //         out.println("Erreur lors du scan du package : " + e.getMessage());
+                //     }
+                // }
+                // out.println("</body>");
+                // out.println("</html>");
+                // out.println("Liste des contrôleurs : ");
+                //     for (String controllerName : controllerNames) {
+                //         out.println(controllerName);
+                //     }
+                for (String cle : map.keySet()) {
+                    if(cle.equals(request.getRequestURI().toString())){
+                        out.println("Votre url : "+stringUrl +" est associe a la methode : "+ map.get(cle).getMethodeName()+" dans la classe : "+(map.get(cle).getClassName()));
+                        ifUrlExist = true;
                     }
                 }
-                out.println("</body>");
-                out.println("</html>");
-                out.println("Liste des contrôleurs : ");
-                    for (String controllerName : controllerNames) {
-                        out.println(controllerName);
+                    if (!ifUrlExist) {
+                        out.println("Aucune methode n'est associe a l url : "+stringUrl );
                     }
                 }
             catch(Exception e){
