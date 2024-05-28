@@ -1,10 +1,4 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package controller;
-
 import util.*;
 import java.util.List;
 import java.util.Map;
@@ -16,13 +10,9 @@ import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.lang.reflect.*;
 import annotation.*;
 
-
-/**
- *
- * @author Admin
- */
 public class FrontController extends HttpServlet {
     HashMap<String,Mapping> map;
     public void init() throws ServletException {
@@ -33,134 +23,42 @@ public class FrontController extends HttpServlet {
             e.printStackTrace();
         }
 
+        }
+
+    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {
+        processedRequest(req, res);
     }
-    // private Boolean ifTraverse = false;
-    // private List<String> controllerNames;
 
-    // public void init() throws ServletException {
-    //     String packageToScan = this.getInitParameter("package_name");
+    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {
+        processedRequest(req, res);
+    }
 
-    //     controllerNames = new ArrayList<>();
-
-    //     try {
-    //         // Récupérer le répertoire racine du package
-    //         String path = getClass().getClassLoader().getResource(packageToScan.replace('.', '/')).getPath();
-    //         String decodedPath = URLDecoder.decode(path, "UTF-8");
-    //         File packageDir = new File(decodedPath);
-
-    //         // Parcourir tous les fichiers dans le répertoire du package
-    //         File[] files = packageDir.listFiles();
-    //         if (files != null) {
-    //             for (File file : files) {
-    //                 if (file.isFile() && file.getName().endsWith(".class")) {
-    //                     String className = packageToScan + "." + file.getName().replace(".class", "");
-    //                     Class<?> clazz = Class.forName(className);
-    //                     if (clazz.isAnnotationPresent(ControllerAnnotation.class)) {
-    //                         controllerNames.add(clazz.getSimpleName());
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     } catch (IOException | ClassNotFoundException e) {
-    //         e.printStackTrace();
-    //     }
-    // }
-    
-    /**
-     * Processes requests for both HTTP <code>GET</code> and <code>POST</code>
-     * methods.
-     *
-     * @param request servlet request
-     * @param response servlet response
-     * @throws ServletException if a servlet-specific error occurs
-     * @throws IOException if an I/O error occurs
-     */
-    protected void processRequest(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
-            try{
-                String stringUrl = request.getRequestURL().toString();
-                Boolean ifUrlExist = false;
-                PrintWriter out = response.getWriter();
-                out.println("<!DOCTYPE html>");
-                out.println("<html>");
-                out.println("<head>");
-                out.println("<title>Servlet NewServlet</title>");            
-                out.println("</head>");
-                out.println("<body>");
-                out.println("<p>Bienvenue</p>");
-                // out.println("<h1>Servlet at " + request.getRequestURL() + "</h1>");
-                
-                // List<String> controllerNames = new ArrayList<>();
-                // if (!ifTraverse) {
-                //     try {
-                //         String package_name = this.getInitParameter("package_name");
-                //         controllerNames = Util.getAllClassesSelonAnnotation(package_name,ControllerAnnotation.class);
-                //         ifTraverse = true;
-                //     } catch (Exception e) {
-                //         e.printStackTrace();
-                //         out.println("Erreur lors du scan du package : " + e.getMessage());
-                //     }
-                // }
-                // out.println("</body>");
-                // out.println("</html>");
-                // out.println("Liste des contrôleurs : ");
-                //     for (String controllerName : controllerNames) {
-                //         out.println(controllerName);
-                //     }
-                for (String cle : map.keySet()) {
-                    if(cle.equals(request.getRequestURI().toString())){
-                        out.println("Votre url : "+stringUrl +" est associe a la methode : "+ map.get(cle).getMethodeName()+" dans la classe : "+(map.get(cle).getClassName()));
-                        ifUrlExist = true;
-                    }
+    protected void processedRequest(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {
+        res.setContentType("text/plain");
+        PrintWriter out = res.getWriter();
+        out.println("Tongasoa ato am FrontController");
+        String url= req.getRequestURI().toString();
+        boolean urlexist=false;
+        for (String cle:map.keySet()){
+            if (cle.equals(url)) {
+                //out.println("Votre url : "+url +" est associe a la methode : "+ map.get(cle).getMethodeName()+" dans la classe : "+(map.get(cle).getClassName()));
+                Mapping mapping=map.get(url);
+                try {
+                    Class<?>c=Class.forName(mapping.getClassName());
+                    Method m=c.getDeclaredMethod(mapping.getMethodeName());
+                    Object instance=c.getDeclaredConstructor().newInstance();
+                    Object result=m.invoke(instance);
+                    out.println(result.toString());
+                    urlexist=true;
+                } catch (Exception e) {
+                    e.printStackTrace();
                 }
-                    if (!ifUrlExist) {
-                        out.println("Aucune methode n'est associe a l url : "+stringUrl );
-                    }
-                }
-            catch(Exception e){
+               
 
             }
-
-    
         }
-    
-    // <editor-fold defaultstate="collapsed" desc="HttpServlet methods. Click on the + sign on the left to edit the code.">
-    /**
-     * Handles the HTTP <code>GET</code> method.
-     *
-     * @param request servlet request
-     * @param response servlet response
-     * @throws ServletException if a servlet-specific error occurs
-     * @throws IOException if an I/O error occurs
-     */
-    @Override
-    protected void doGet(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
-        processRequest(request, response);
+        if (!urlexist) {
+            out.println("Aucune methode n'est associe a l url : "+url);
+        }
     }
-
-    /**
-     * Handles the HTTP <code>POST</code> method.
-     *
-     * @param request servlet request
-     * @param response servlet response
-     * @throws ServletException if a servlet-specific error occurs
-     * @throws IOException if an I/O error occurs
-     */
-    @Override
-    protected void doPost(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
-        processRequest(request, response);
-    }
-
-    /**
-     * Returns a short description of the servlet.
-     *
-     * @return a String containing servlet description
-     */
-    @Override
-    public String getServletInfo() {
-        return "Short description";
-    }// </editor-fold>
-
 }
