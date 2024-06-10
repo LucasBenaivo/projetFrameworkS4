@@ -31,6 +31,10 @@ public class Util {
                             for (Method m : methods) {
                                 if (m.isAnnotationPresent(Get.class)) {
                                     Get getAnnotation= m.getAnnotation(Get.class);
+                                    for(String key:hm.keySet()){
+                                        if(getAnnotation.url().equals(key))
+                                        throw new Exception("Duplicate url : "+getAnnotation.url());
+                                    }
                                     hm.put(getAnnotation.url(),new Mapping(clazz.getName(),m.getName()));
                                 }
                             }
@@ -39,10 +43,12 @@ public class Util {
                 }
             }
            
-        } catch (IOException | ClassNotFoundException e) {
-            throw e;
+        } catch (IOException e) {
+            throw new Exception("Package introuvable");
         }
+       
         return hm;
+        
     }
 
    
