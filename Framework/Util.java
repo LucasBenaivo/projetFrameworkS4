@@ -31,11 +31,13 @@ public class Util {
                             for (Method m : methods) {
                                 if (m.isAnnotationPresent(Get.class)) {
                                     Get getAnnotation= m.getAnnotation(Get.class);
+                                    String lien = getAnnotation.url();
                                     for(String key:hm.keySet()){
-                                        if(getAnnotation.url().equals(key))
+                                        if(lien.equals(key))
                                         throw new Exception("Duplicate url : "+getAnnotation.url());
                                     }
-                                    hm.put(getAnnotation.url(),new Mapping(clazz.getName(),m.getName()));
+                                    
+                                    hm.put(lien,new Mapping(clazz.getName(),m.getName()));
                                 }
                             }
                         }
@@ -49,6 +51,31 @@ public class Util {
        
         return hm;
         
+    }
+    public static Object convertParameterValue(String value, Class<?> type) {
+        if (type == String.class) {
+            return value;
+        } else if (type == int.class || type == Integer.class) {
+            return Integer.parseInt(value);
+        } else if (type == boolean.class || type == Boolean.class) {
+            return Boolean.parseBoolean(value);
+        } else if (type == long.class || type == Long.class) {
+            return Long.parseLong(value);
+        } else if (type == double.class || type == Double.class) {
+            return Double.parseDouble(value);
+        } else if (type == float.class || type == Float.class) {
+            return Float.parseFloat(value);
+        } else if (type == short.class || type == Short.class) {
+            return Short.parseShort(value);
+        } else if (type == byte.class || type == Byte.class) {
+            return Byte.parseByte(value);
+        } else if (type == char.class || type == Character.class) {
+            if (value.length() != 1) {
+                throw new IllegalArgumentException("Invalid character value: " + value);
+            }
+            return value.charAt(0);
+        }
+        return null;
     }
 
    
