@@ -23,6 +23,7 @@ public class FrontController extends HttpServlet {
     public void init() throws ServletException {
         try {
             String packageName = this.getInitParameter("package_name");
+            System.out.println(packageName);
             hashMap = Scan.getAllClassSelonAnnotation2(this, packageName, AnnotationController.class);
             // PrintWriter out = response.getWriter();
             for (String key : hashMap.keySet()) {
@@ -66,6 +67,8 @@ public class FrontController extends HttpServlet {
                             ParamObject.class);
 
                     Object result = method.invoke(instance, parameterValues);
+                    out.println(result);
+                    System.out.println(result);
                     if (result instanceof ModelView) {
                         ModelView modelView = (ModelView) result;
                         RequestDispatcher dispatch = request.getRequestDispatcher(modelView.getUrl());
