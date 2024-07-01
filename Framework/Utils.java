@@ -3,7 +3,7 @@ package utils;
 import javax.servlet.http.HttpServletRequest;
 // import com.thoughtworks.paranamer.*;
 import java.lang.reflect.*;
-import java.lang.reflect.Parameter;
+
 import annotation.*;
 
 public class Utils {
@@ -27,8 +27,10 @@ public class Utils {
                     for (Field field : fields) {
                         String fieldName = field.getName();
                         String paramValue = request.getParameter(objName + "." + fieldName);
-                        field.setAccessible(true);
-                        field.set(paramObjectInstance, convertParameterValue(paramValue, field.getType()));
+                        if (paramValue != null) {
+                            field.setAccessible(true);
+                            field.set(paramObjectInstance, convertParameterValue(paramValue, field.getType()));
+                        }
                     }
                     parameterValues[i] = paramObjectInstance;
                 } catch (Exception e) {
@@ -36,13 +38,16 @@ public class Utils {
                     throw new RuntimeException("Failed to create and populate parameter object: " + e.getMessage());
                 }
             } else {
-                throw new RuntimeException("Parameter name could not be determined for parameter index " + i);
+                // throw new Exception(
+                // "ETU002746 Annotation not found");
+                String paramName = parameters[i].getName();
+                String paramValue = request.getParameter(paramName);
+                parameterValues[i] = convertParameterValue(paramValue,
+                        parameters[i].getType());
             }
         }
         return parameterValues;
     }
-
-
 
     /* On traite les types primitives */
     private static Object convertParameterValue(String value, Class<?> type) {

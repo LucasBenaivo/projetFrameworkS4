@@ -48,7 +48,6 @@ public class Scan {
         HashMap<String, Mapping> hMap = new HashMap<>();
         try {
             String path = servlet.getClass().getClassLoader().getResource(packageName.replace('.', '/')).getPath();
-            System.out.println("path: " + path);
             String decodedPath = URLDecoder.decode(path, "UTF-8");
             File packageDir = new File(decodedPath);
 
@@ -61,15 +60,12 @@ public class Scan {
                 for (File file : files) {
                     if (file.isFile() && file.getName().endsWith(".class")) {
                         String className = packageName + "." + file.getName().replace(".class", "");
-                        System.out.println("className" + className);
                         Class<?> clazz = Class.forName(className);
-                        System.out.println("clazz" + clazz);
                         if (clazz.isAnnotationPresent(annotation.asSubclass(java.lang.annotation.Annotation.class))) {
                             Method[] methods = clazz.getDeclaredMethods();
                             for (Method method : methods) {
                                 if (method.isAnnotationPresent(Get.class)) {
                                     Get get = method.getAnnotation(Get.class);
-                                    // System.out.println("get" + get);
                                     for (String key : hMap.keySet()) {
                                         if (get.value().equals(key))
                                             throw new Exception("Duplicate url : " + get.value());
@@ -89,49 +85,5 @@ public class Scan {
         }
         return hMap;
     }
-
-    // public static HashMap getAllClassesSelonAnnotation3(String packageToScan,Class<?>annotation) throws Exception{
-    //     //List<String> controllerNames = new ArrayList<>();
-    //     HashMap<String,Mapping> hm=new HashMap<>();
-    //     try {
-            
-    //         //String path = getClass().getClassLoader().getResource(packageToScan.replace('.', '/')).getPath();
-    //         String path = Thread.currentThread().getContextClassLoader().getResource(packageToScan.replace('.', '/')).getPath();
-    //         String decodedPath = URLDecoder.decode(path, "UTF-8");
-    //         File packageDir = new File(decodedPath);
-
-    //         File[] files = packageDir.listFiles();
-    //         if (files != null) {
-    //             for (File file : files) {
-    //                 if (file.isFile() && file.getName().endsWith(".class")) {
-    //                     String className = packageToScan + "." + file.getName().replace(".class", "");
-    //                     Class<?> clazz = Class.forName(className);
-    //                     if (clazz.isAnnotationPresent(annotation.asSubclass(java.lang.annotation.Annotation.class))) {
-    //                         //controllerNames.add(clazz.getSimpleName());
-    //                         Method[]methods=clazz.getDeclaredMethods();
-    //                         for (Method m : methods) {
-    //                             if (m.isAnnotationPresent(Get.class)) {
-    //                                 Get getAnnotation= m.getAnnotation(Get.class);
-    //                                 String lien = getAnnotation.url();
-    //                                 for(String key:hm.keySet()){
-    //                                     if(lien.equals(key))
-    //                                     throw new Exception("Duplicate url : "+getAnnotation.url());
-    //                                 }
-                                    
-    //                                 hm.put(lien,new Mapping(clazz.getName(),m.getName()));
-    //                             }
-    //                         }
-    //                     }
-    //                 }
-    //             }
-    //         }
-           
-    //     } catch (IOException e) {
-    //         throw new Exception("Package introuvable");
-    //     }
-       
-    //     return hm;
-        
-    // }
 
 }
