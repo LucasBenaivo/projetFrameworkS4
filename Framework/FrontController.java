@@ -22,13 +22,8 @@ public class FrontController extends HttpServlet {
     @Override
     public void init() throws ServletException {
         try {
-            String packageName = this.getInitParameter("package_name");
-            System.out.println(packageName);
+            String packageName = this.getInitParameter("nom_package");
             hashMap = Scan.getAllClassSelonAnnotation2(this, packageName, AnnotationController.class);
-            // PrintWriter out = response.getWriter();
-            for (String key : hashMap.keySet()) {
-                System.out.println(key);
-            }
             System.out.println("Initialization completed. HashMap size: " + hashMap.size());
         } catch (PackageNotFoundException e) {
             throw new ServletException("Initialization error - Package not found: " + e.getMessage(), e);
@@ -66,9 +61,15 @@ public class FrontController extends HttpServlet {
                     Object[] parameterValues = Utils.getParameterValues(request, method, Param.class,
                             ParamObject.class);
 
+                    // Initialisation de MySession
+                    for (int i = 0; i < parameterValues.length; i++) {
+                        if (parameterValues[i] == null && method.getParameterTypes()[i].equals(MySession.class)) {
+                            MySession session = new MySession(request.getSession());
+                            parameterValues[i] = session;
+                        }
+                    }
+
                     Object result = method.invoke(instance, parameterValues);
-                    out.println(result);
-                    System.out.println(result);
                     if (result instanceof ModelView) {
                         ModelView modelView = (ModelView) result;
                         RequestDispatcher dispatch = request.getRequestDispatcher(modelView.getUrl());
@@ -84,9 +85,7 @@ public class FrontController extends HttpServlet {
                         out.println("Unsupported return type from controller method.");
                     }
                 } catch (Exception e) {
-                    response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
                     out.println("Error invoking method: " + e.getMessage());
-                    e.printStackTrace(out);
                 }
             } else {
                 response.sendError(HttpServletResponse.SC_NOT_FOUND, "No mapping found for URL: " + url);
