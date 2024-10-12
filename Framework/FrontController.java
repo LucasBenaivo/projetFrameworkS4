@@ -193,6 +193,8 @@ public class FrontController extends HttpServlet {
             }
         }
 
-        
+        if (!urlExists) {
+            out.println("Error 404 - Aucune methode associe a l'URL: " + url);
+        }
     }
 }
