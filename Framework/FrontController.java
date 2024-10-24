@@ -27,7 +27,15 @@ import java.lang.reflect.Parameter;
 import annotation.*;
 import model.*;
 import com.google.gson.Gson;
+import model.Fichier;
+import javax.servlet.http.Part;
+import javax.servlet.annotation.MultipartConfig;
 
+@MultipartConfig(
+    fileSizeThreshold = 1024 * 1024 * 10,  // 10 MB
+    maxFileSize = 1024 * 1024 * 50,        // 50 MB
+    maxRequestSize = 1024 * 1024 * 100     // 100 MB
+)
 public class FrontController extends HttpServlet {
     private List<String> controllers;
     private HashMap<String, Mapping> map;
@@ -110,6 +118,7 @@ public class FrontController extends HttpServlet {
 
                     for (int i = 0; i < params.length; i++) {
                         Parameter param = params[i];
+                        // Gérer les fichiers
                         if (param.getType().equals(MySession.class)) {
                             HttpSession httpSession = req.getSession(false);
                             if (httpSession == null) {
@@ -118,10 +127,21 @@ public class FrontController extends HttpServlet {
                             MySession session = new MySession(httpSession);
                             parameterValues[i] = session;
                         } else if (param.isAnnotationPresent(Param.class)) {
-                            Param paramAnnotation = param.getAnnotation(Param.class);
-                            String paramName = paramAnnotation.name();
-                            String paramValue = req.getParameter(paramName);
-                            parameterValues[i] = Util.convertParameterValue(paramValue, param.getType());
+                            if (req.getContentType() != null && req.getContentType().toLowerCase().startsWith("multipart/")) {
+                                Part filePart = req.getPart("file");
+                                if (filePart != null) {
+                                    Fichier fichier = new Fichier(filePart);
+                                    parameterValues[i] = fichier;
+                                } else {
+                                    throw new ServletException("File part is missing.");
+                                }
+                            }else{
+                                Param paramAnnotation = param.getAnnotation(Param.class);
+                                String paramName = paramAnnotation.name();
+                                String paramValue = req.getParameter(paramName);
+                                parameterValues[i] = Util.convertParameterValue(paramValue, param.getType());
+                            }
+                            
                         } else if (param.isAnnotationPresent(ParamObject.class)) {
                             ParamObject paramObjectAnnotation = param.getAnnotation(ParamObject.class);
                             String objName = paramObjectAnnotation.objName();
@@ -186,13 +206,21 @@ public class FrontController extends HttpServlet {
                 }
 
             } catch (Exception e) {
-                e.printStackTrace();
+                //e.printStackTrace();
                 req.setAttribute("error", e.getMessage());
                 RequestDispatcher dispatch = req.getRequestDispatcher("/error.jsp");
+                res.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
                 dispatch.forward(req, res);
             }
         }
 
-        
+        if (!urlExists) {
+            //req.setAttribute("error", "No method is associated with the URL: " + url);
+            //RequestDispatcher dispatch = req.getRequestDispatcher("/error.jsp");
+            //
+            //dispatch.forward(req, res);
+            res.setStatus(HttpServletResponse.SC_NOT_FOUND);
+            out.println("Error 404 - No method is associated with the URL: " + url);
+        }
     }
 }
