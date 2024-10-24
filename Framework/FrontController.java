@@ -219,7 +219,7 @@ public class FrontController extends HttpServlet {
             //RequestDispatcher dispatch = req.getRequestDispatcher("/error.jsp");
             //
             //dispatch.forward(req, res);
-            // res.setStatus(HttpServletResponse.SC_NOT_FOUND);
+            res.setStatus(HttpServletResponse.SC_NOT_FOUND);
             out.println("Error 404 - Aucune methode associe a l'URL: " + url);
 
         }
