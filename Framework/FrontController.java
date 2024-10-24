@@ -215,13 +215,8 @@ public class FrontController extends HttpServlet {
         }
 
         if (!urlExists) {
-            //req.setAttribute("error", "No method is associated with the URL: " + url);
-            //RequestDispatcher dispatch = req.getRequestDispatcher("/error.jsp");
-            //
-            //dispatch.forward(req, res);
-            res.setStatus(HttpServletResponse.SC_NOT_FOUND);
-            out.println("Error 404 - Aucune methode associe a l'URL: " + url);
+    out.println("Error 404 - Aucune methode associe a l'URL: " + url);
+}
 
-        }
     }
 }
