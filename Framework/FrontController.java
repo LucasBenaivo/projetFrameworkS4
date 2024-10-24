@@ -220,7 +220,8 @@ public class FrontController extends HttpServlet {
             //
             //dispatch.forward(req, res);
             // res.setStatus(HttpServletResponse.SC_NOT_FOUND);
-            out.println("Error 404 - No method is associated with the URL: " + url);
+            out.println("Error 404 - Aucune methode associe a l'URL: " + url);
+
         }
     }
 }
