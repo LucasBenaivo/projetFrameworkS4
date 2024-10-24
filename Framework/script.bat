@@ -1,6 +1,6 @@
 @echo off
 
-set DESTINATION_DIR=D:\Etude\ITU\S5\Mr Naina\Framework\Framework\Test
+set DESTINATION_DIR=D:\Etude\ITU\S5\Mr Naina\Framework\sprint12\Framework\Test
 
 REM Vérifier si le dossier lib existe dans le dossier de destination
 if not exist "%DESTINATION_DIR%\lib" (
