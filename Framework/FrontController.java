@@ -63,10 +63,8 @@ public class FrontController extends HttpServlet {
         PrintWriter out = res.getWriter();
 
         String url = req.getRequestURI();
-        boolean urlExists = false;
 
         if (map.containsKey(url)) {
-            urlExists = true;
             Mapping mapping = map.get(url);
             String requestMethod = req.getMethod();
 
