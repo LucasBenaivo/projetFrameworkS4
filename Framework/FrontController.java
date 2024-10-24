@@ -23,9 +23,6 @@ import java.lang.reflect.Parameter;
 import annotation.*;
 import model.*;
 import com.google.gson.Gson;
-import model.Fichier;
-import javax.servlet.http.Part;
-import javax.servlet.annotation.MultipartConfig;
 
 @MultipartConfig(
     fileSizeThreshold = 1024 * 1024 * 10,  // 10 MB
@@ -43,7 +40,6 @@ public class FrontController extends HttpServlet {
             controllers = Util.getAllClassesSelonAnnotation(packageName, ControllerAnnotation.class);
             map = Util.getAllMethods(controllers);
         } catch (Exception e) {
-            e.printStackTrace();
             throw new ServletException("Initialization failed: " + e.getMessage(), e);
         }
     }
@@ -61,7 +57,6 @@ public class FrontController extends HttpServlet {
     private void processRequest(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {
         res.setContentType("text/html");
         PrintWriter out = res.getWriter();
-
         String url = req.getRequestURI();
 
         if (map.containsKey(url)) {
@@ -73,13 +68,7 @@ public class FrontController extends HttpServlet {
                 for (VerbAction action : mapping.getVerbactions()) {
                     if (action.getVerb().equalsIgnoreCase(requestMethod)) {
                         Class<?> c = Class.forName(mapping.getClassName());
-                        Method[] methods = c.getDeclaredMethods();
-                        for (Method method : methods) {
-                            if (method.getName().equals(action.getMethodName())) {
-                                m = method;
-                                break;
-                            }
-                        }
+                        m = c.getDeclaredMethod(action.getMethodName());
                         break;
                     }
                 }
@@ -90,95 +79,10 @@ public class FrontController extends HttpServlet {
 
                 Parameter[] params = m.getParameters();
                 Object instance = Class.forName(mapping.getClassName()).getDeclaredConstructor().newInstance();
-                Field[] attributs = instance.getClass().getDeclaredFields();
-                for (Field field : attributs) {
-                    if (field.getType().equals(MySession.class)) {
-                        HttpSession httpSession = req.getSession(false);
-                        if (httpSession == null) {
-                            httpSession = req.getSession(true);
-                        }
-                        MySession session = new MySession(httpSession);
-                        field.setAccessible(true);
-                        field.set(instance, session);
-                    }
-                }
+                injectSession(instance, req);
 
-                Object result;
-
-                if (params.length < 1) {
-                    result = m.invoke(instance);
-                } else {
-                    Object[] parameterValues = new Object[params.length];
-
-                    for (int i = 0; i < params.length; i++) {
-                        Parameter param = params[i];
-                        if (param.getType().equals(MySession.class)) {
-                            HttpSession httpSession = req.getSession(false);
-                            if (httpSession == null) {
-                                httpSession = req.getSession(true);
-                            }
-                            MySession session = new MySession(httpSession);
-                            parameterValues[i] = session;
-                        } else if (param.isAnnotationPresent(Param.class)) {
-                            Param paramAnnotation = param.getAnnotation(Param.class);
-                            String paramName = paramAnnotation.name();
-                            String paramValue = req.getParameter(paramName);
-                            parameterValues[i] = Util.convertParameterValue(paramValue, param.getType());
-                        } else if (param.isAnnotationPresent(ParamObject.class)) {
-                            ParamObject paramObjectAnnotation = param.getAnnotation(ParamObject.class);
-                            String objName = paramObjectAnnotation.objName();
-                            Object paramObjectInstance = param.getType().getDeclaredConstructor().newInstance();
-                            Field[] fields = param.getType().getDeclaredFields();
-                            for (Field field : fields) {
-                                String fieldName = field.getName();
-                                String paramValue = req.getParameter(objName + "." + fieldName);
-                                field.setAccessible(true);
-                                field.set(paramObjectInstance, Util.convertParameterValue(paramValue, field.getType()));
-                            }
-                            parameterValues[i] = paramObjectInstance;
-                        } else {
-                            String paramName = param.getName();
-                            String paramValue = req.getParameter(paramName);
-                            parameterValues[i] = Util.convertParameterValue(paramValue, param.getType());
-                        }
-                    }
-                    result = m.invoke(instance, parameterValues);
-                }
-
-                if (m.isAnnotationPresent(Restapi.class)) {
-                    res.setContentType("application/json");
-                    Gson gson = new Gson();
-                    if (result instanceof ModelView) {
-                        ModelView mv = (ModelView) result;
-                        String json = gson.toJson(mv.getData());
-                        out.println(json);
-                    } else {
-                        String json = gson.toJson(result);
-                        out.println(json);
-                    }
-                } else {
-                    if (result instanceof ModelView) {
-                        ModelView mv = (ModelView) result;
-                        String jspPath = mv.getUrl();
-                        ServletContext context = getServletContext();
-                        String realPath = context.getRealPath(jspPath);
-
-                        if (realPath == null || !new File(realPath).exists()) {
-                            throw new ServletException("The JSP page " + jspPath + " does not exist.");
-                        }
-
-                        for (Map.Entry<String, Object> entry : mv.getData().entrySet()) {
-                            req.setAttribute(entry.getKey(), entry.getValue());
-                        }
-
-                        RequestDispatcher dispatch = req.getRequestDispatcher(jspPath);
-                        dispatch.forward(req, res);
-                    } else if (result instanceof String) {
-                        out.println(result.toString());
-                    } else {
-                        throw new ServletException("Unknown return type: " + result.getClass().getSimpleName());
-                    }
-                }
+                Object result = invokeMethod(m, instance, req, params);
+                handleResponse(res, out, result, m);
 
             } catch (Exception e) {
                 req.setAttribute("error", e.getMessage());
@@ -189,6 +93,82 @@ public class FrontController extends HttpServlet {
         } else {
             res.setStatus(HttpServletResponse.SC_NOT_FOUND);
             out.println("Error 404 - Aucune méthode associée à l'URL: " + url);
+        }
+    }
+
+    private void injectSession(Object instance, HttpServletRequest req) throws IllegalAccessException {
+        Field[] attributs = instance.getClass().getDeclaredFields();
+        for (Field field : attributs) {
+            if (field.getType().equals(MySession.class)) {
+                HttpSession httpSession = req.getSession(true);
+                MySession session = new MySession(httpSession);
+                field.setAccessible(true);
+                field.set(instance, session);
+            }
+        }
+    }
+
+    private Object invokeMethod(Method m, Object instance, HttpServletRequest req, Parameter[] params) throws Exception {
+        if (params.length < 1) {
+            return m.invoke(instance);
+        }
+
+        Object[] parameterValues = new Object[params.length];
+        for (int i = 0; i < params.length; i++) {
+            parameterValues[i] = resolveParameter(req, params[i]);
+        }
+        return m.invoke(instance, parameterValues);
+    }
+
+    private Object resolveParameter(HttpServletRequest req, Parameter param) throws Exception {
+        if (param.getType().equals(MySession.class)) {
+            return new MySession(req.getSession(true));
+        } else if (param.isAnnotationPresent(Param.class)) {
+            return Util.convertParameterValue(req.getParameter(param.getAnnotation(Param.class).name()), param.getType());
+        } else if (param.isAnnotationPresent(ParamObject.class)) {
+            return resolveParamObject(req, param);
+        } else {
+            return Util.convertParameterValue(req.getParameter(param.getName()), param.getType());
+        }
+    }
+
+    private Object resolveParamObject(HttpServletRequest req, Parameter param) throws Exception {
+        ParamObject paramObjectAnnotation = param.getAnnotation(ParamObject.class);
+        Object paramObjectInstance = param.getType().getDeclaredConstructor().newInstance();
+        Field[] fields = param.getType().getDeclaredFields();
+        for (Field field : fields) {
+            String paramValue = req.getParameter(paramObjectAnnotation.objName() + "." + field.getName());
+            field.setAccessible(true);
+            field.set(paramObjectInstance, Util.convertParameterValue(paramValue, field.getType()));
+        }
+        return paramObjectInstance;
+    }
+
+    private void handleResponse(HttpServletResponse res, PrintWriter out, Object result, Method m) throws IOException, ServletException {
+        if (m.isAnnotationPresent(Restapi.class)) {
+            res.setContentType("application/json");
+            Gson gson = new Gson();
+            out.println(gson.toJson(result instanceof ModelView ? ((ModelView) result).getData() : result));
+        } else if (result instanceof ModelView) {
+            ModelView mv = (ModelView) result;
+            String jspPath = mv.getUrl();
+            ServletContext context = getServletContext();
+            String realPath = context.getRealPath(jspPath);
+
+            if (realPath == null || !new File(realPath).exists()) {
+                throw new ServletException("The JSP page " + jspPath + " does not exist.");
+            }
+
+            for (Map.Entry<String, Object> entry : mv.getData().entrySet()) {
+                req.setAttribute(entry.getKey(), entry.getValue());
+            }
+
+            RequestDispatcher dispatch = req.getRequestDispatcher(jspPath);
+            dispatch.forward(req, res);
+        } else if (result instanceof String) {
+            out.println(result);
+        } else {
+            throw new ServletException("Unknown return type: " + result.getClass().getSimpleName());
         }
     }
 }
