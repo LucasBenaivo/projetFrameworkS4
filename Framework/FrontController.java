@@ -214,13 +214,13 @@ public class FrontController extends HttpServlet {
             }
         }
 
-        if (!urlExists) {
-            //req.setAttribute("error", "No method is associated with the URL: " + url);
-            //RequestDispatcher dispatch = req.getRequestDispatcher("/error.jsp");
-            //
-            //dispatch.forward(req, res);
-            // res.setStatus(HttpServletResponse.SC_NOT_FOUND);
-            out.println("Error 404 - No method is associated with the URL: " + url);
-        }
+        // if (!urlExists) {
+        //     //req.setAttribute("error", "No method is associated with the URL: " + url);
+        //     //RequestDispatcher dispatch = req.getRequestDispatcher("/error.jsp");
+        //     //
+        //     //dispatch.forward(req, res);
+        //     // res.setStatus(HttpServletResponse.SC_NOT_FOUND);
+        //     out.println("Error 404 - No method is associated with the URL: " + url);
+        // }
     }
 }
