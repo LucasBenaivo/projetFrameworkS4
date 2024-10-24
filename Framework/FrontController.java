@@ -9,11 +9,7 @@ import java.util.Map;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Enumeration;
 import java.util.HashMap;
-import java.util.stream.Collectors;
 import javax.servlet.ServletContext;
 import javax.servlet.ServletException;
 import javax.servlet.RequestDispatcher;
@@ -118,7 +114,6 @@ public class FrontController extends HttpServlet {
 
                     for (int i = 0; i < params.length; i++) {
                         Parameter param = params[i];
-                        // Gérer les fichiers
                         if (param.getType().equals(MySession.class)) {
                             HttpSession httpSession = req.getSession(false);
                             if (httpSession == null) {
@@ -127,21 +122,10 @@ public class FrontController extends HttpServlet {
                             MySession session = new MySession(httpSession);
                             parameterValues[i] = session;
                         } else if (param.isAnnotationPresent(Param.class)) {
-                            if (req.getContentType() != null && req.getContentType().toLowerCase().startsWith("multipart/")) {
-                                Part filePart = req.getPart("file");
-                                if (filePart != null) {
-                                    Fichier fichier = new Fichier(filePart);
-                                    parameterValues[i] = fichier;
-                                } else {
-                                    throw new ServletException("File part is missing.");
-                                }
-                            }else{
-                                Param paramAnnotation = param.getAnnotation(Param.class);
-                                String paramName = paramAnnotation.name();
-                                String paramValue = req.getParameter(paramName);
-                                parameterValues[i] = Util.convertParameterValue(paramValue, param.getType());
-                            }
-                            
+                            Param paramAnnotation = param.getAnnotation(Param.class);
+                            String paramName = paramAnnotation.name();
+                            String paramValue = req.getParameter(paramName);
+                            parameterValues[i] = Util.convertParameterValue(paramValue, param.getType());
                         } else if (param.isAnnotationPresent(ParamObject.class)) {
                             ParamObject paramObjectAnnotation = param.getAnnotation(ParamObject.class);
                             String objName = paramObjectAnnotation.objName();
@@ -156,9 +140,6 @@ public class FrontController extends HttpServlet {
                             parameterValues[i] = paramObjectInstance;
                         } else {
                             String paramName = param.getName();
-                            if (paramName == null || paramName.isEmpty()) {
-                                throw new RuntimeException("Parameter name could not be determined for parameter index " + i);
-                            }
                             String paramValue = req.getParameter(paramName);
                             parameterValues[i] = Util.convertParameterValue(paramValue, param.getType());
                         }
@@ -167,17 +148,14 @@ public class FrontController extends HttpServlet {
                 }
 
                 if (m.isAnnotationPresent(Restapi.class)) {
+                    res.setContentType("application/json");
+                    Gson gson = new Gson();
                     if (result instanceof ModelView) {
                         ModelView mv = (ModelView) result;
-                        HashMap<String, Object> data = mv.getData();
-                        Gson gson = new Gson();
-                        String json = gson.toJson(data);
-                        res.setContentType("application/json");
+                        String json = gson.toJson(mv.getData());
                         out.println(json);
                     } else {
-                        Gson gson = new Gson();
                         String json = gson.toJson(result);
-                        res.setContentType("application/json");
                         out.println(json);
                     }
                 } else {
@@ -191,8 +169,7 @@ public class FrontController extends HttpServlet {
                             throw new ServletException("The JSP page " + jspPath + " does not exist.");
                         }
 
-                        HashMap<String, Object> data = mv.getData();
-                        for (Map.Entry<String, Object> entry : data.entrySet()) {
+                        for (Map.Entry<String, Object> entry : mv.getData().entrySet()) {
                             req.setAttribute(entry.getKey(), entry.getValue());
                         }
 
@@ -206,17 +183,14 @@ public class FrontController extends HttpServlet {
                 }
 
             } catch (Exception e) {
-                //e.printStackTrace();
                 req.setAttribute("error", e.getMessage());
                 RequestDispatcher dispatch = req.getRequestDispatcher("/error.jsp");
                 res.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
                 dispatch.forward(req, res);
             }
+        } else {
+            res.setStatus(HttpServletResponse.SC_NOT_FOUND);
+            out.println("Error 404 - Aucune méthode associée à l'URL: " + url);
         }
-
-        if (!urlExists) {
-    out.println("Error 404 - Aucune methode associe a l'URL: " + url);
-}
-
     }
 }
