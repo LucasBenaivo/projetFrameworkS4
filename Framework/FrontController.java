@@ -1,174 +1,158 @@
 package controller;
 
-import util.Util;
-import util.Mapping;
-import util.MySession;
-import util.VerbAction;
-import java.util.List;
-import java.util.Map;
-import java.io.File;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.util.HashMap;
-import javax.servlet.ServletContext;
-import javax.servlet.ServletException;
+import annotation.*;
+import utils.*;
+
 import javax.servlet.RequestDispatcher;
+import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import javax.servlet.http.HttpSession;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.lang.reflect.Parameter;
-import annotation.*;
-import model.*;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.lang.reflect.*;
+import java.util.HashMap;
+import exception.*;
+import javax.servlet.http.Part;
 import com.google.gson.Gson;
 
-@MultipartConfig(
-    fileSizeThreshold = 1024 * 1024 * 10,  // 10 MB
-    maxFileSize = 1024 * 1024 * 50,        // 50 MB
-    maxRequestSize = 1024 * 1024 * 100     // 100 MB
-)
 public class FrontController extends HttpServlet {
-    private List<String> controllers;
-    private HashMap<String, Mapping> map;
+    private HashMap<String, Mapping> hashMap;
 
     @Override
     public void init() throws ServletException {
         try {
-            String packageName = this.getInitParameter("package_name");
-            controllers = Util.getAllClassesSelonAnnotation(packageName, ControllerAnnotation.class);
-            map = Util.getAllMethods(controllers);
-        } catch (Exception e) {
-            throw new ServletException("Initialization failed: " + e.getMessage(), e);
+            String packageName = this.getInitParameter("nom_package");
+            hashMap = Scan.getAllClassSelonAnnotation3(this, packageName, AnnotationController.class);
+            System.out.println("Initialization completed. HashMap size: " + hashMap.size());
+        } catch (PackageNotFoundException e) {
+            throw new ServletException("Initialization error - Package not found: " + e.getMessage(), e);
         }
     }
 
-    @Override
-    protected void doGet(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {
-        processRequest(req, res);
-    }
+    protected void processRequest(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+        response.setContentType("text/html;charset=UTF-8");
+        PrintWriter out = response.getWriter();
 
-    @Override
-    protected void doPost(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {
-        processRequest(req, res);
-    }
+        String url = request.getRequestURI().substring(request.getContextPath().length());
+        System.out.println("Request URI: " + url);
 
-    private void processRequest(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {
-        res.setContentType("text/html");
-        PrintWriter out = res.getWriter();
-        String url = req.getRequestURI();
+        if (hashMap != null) {
+            Mapping mapping = hashMap.get(url);
+            if (mapping != null) {
+                try {
+                    Class<?> clazz = Class.forName(mapping.getClassName());
+                    Method method = null;
 
-        if (map.containsKey(url)) {
-            Mapping mapping = map.get(url);
-            String requestMethod = req.getMethod();
-
-            try {
-                Method m = null;
-                for (VerbAction action : mapping.getVerbactions()) {
-                    if (action.getVerb().equalsIgnoreCase(requestMethod)) {
-                        Class<?> c = Class.forName(mapping.getClassName());
-                        m = c.getDeclaredMethod(action.getMethodName());
-                        break;
+                    // Cherche la méthode dans la classe correspondante
+                    for (Method m : clazz.getDeclaredMethods()) {
+                        if (m.getName().equals(mapping.getMethodName())) {
+                            method = m;
+                            break;
+                        }
                     }
+
+                    if (method == null) {
+                        throw new NoSuchMethodException(
+                                "Method " + mapping.getMethodName() + " not found in " + clazz.getName());
+                    }
+
+                    // Vérifie si la requête correspond au verbe de la méthode
+                    String requestMethod = request.getMethod();
+                    String methodVerb = mapping.getVerb();
+
+                    if (!methodVerb.equalsIgnoreCase(requestMethod) && !methodVerb.isEmpty()) {
+                        response.sendError(HttpServletResponse.SC_BAD_REQUEST,
+                                "Method not allowed: " + requestMethod + " for URL: " + url);
+                        return;
+                    }
+
+                    Object instance = clazz.getDeclaredConstructor().newInstance();
+                    Object[] parameterValues = Utils.getParameterValues(request, method, Param.class,
+                            ParamObject.class);
+
+                    if (request.getContentType() != null && request.getContentType().startsWith("multipart/")) {
+                        for (int i = 0; i < parameterValues.length; i++) {
+                            if (parameterValues[i] == null && method.getParameterTypes()[i].equals(MyMultiPart.class)) {
+                                Part filePart = request.getPart(method.getParameters()[i].getName());
+                                if (filePart != null) {
+                                    parameterValues[i] = new MyMultiPart(filePart);
+                                }
+                            }
+                        }
+                    }
+
+                    // Initialisation de MySession dans un attribut
+                    Field sessionField = null;
+                    for (Field field : clazz.getDeclaredFields()) {
+                        if (field.getType().equals(MySession.class)) {
+                            sessionField = field;
+                            break;
+                        }
+                    }
+                    if (sessionField != null) {
+                        sessionField.setAccessible(true);
+                        sessionField.set(instance, new MySession(request.getSession()));
+                    }
+
+                    // Initialisation de MySession dans un paramètre
+                    for (int i = 0; i < parameterValues.length; i++) {
+                        if (parameterValues[i] == null && method.getParameterTypes()[i].equals(MySession.class)) {
+                            MySession session = new MySession(request.getSession());
+                            parameterValues[i] = session;
+                        }
+                    }
+
+                    Object result = method.invoke(instance, parameterValues);
+                    if (method.isAnnotationPresent(ResponseBody.class)) {
+                        if (result instanceof ModelView) {
+                            ModelView modelView = (ModelView) result;
+                            RequestDispatcher dispatch = request.getRequestDispatcher(modelView.getUrl());
+                            HashMap<String, Object> data = modelView.getData();
+                            Gson gson = new Gson();
+                            String jsonResponse = gson.toJson(data);
+                            out.println(jsonResponse);
+                        } else {
+                            Gson gson = new Gson();
+                            String jsonResponse = gson.toJson(result);
+                            out.println(jsonResponse);
+                        }
+                    } else if (result instanceof ModelView) {
+                        ModelView modelView = (ModelView) result;
+                        RequestDispatcher dispatch = request.getRequestDispatcher(modelView.getUrl());
+                        HashMap<String, Object> data = modelView.getData();
+                        for (String keyData : data.keySet()) {
+                            request.setAttribute(keyData, data.get(keyData));
+                            System.out.println(keyData);
+                        }
+                        dispatch.forward(request, response);
+                    } else if (result instanceof String) {
+                        out.println(result.toString());
+                    } else {
+                        out.println("Unsupported return type from controller method.");
+                    }
+                } catch (Exception e) {
+                    out.println("Error invoking method: " + e.getMessage());
                 }
-
-                if (m == null) {
-                    throw new ServletException("Method not found in class " + mapping.getClassName());
-                }
-
-                Parameter[] params = m.getParameters();
-                Object instance = Class.forName(mapping.getClassName()).getDeclaredConstructor().newInstance();
-                injectSession(instance, req);
-
-                Object result = invokeMethod(m, instance, req, params);
-                handleResponse(res, out, result, m);
-
-            } catch (Exception e) {
-                req.setAttribute("error", e.getMessage());
-                RequestDispatcher dispatch = req.getRequestDispatcher("/error.jsp");
-                res.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-                dispatch.forward(req, res);
+            } else {
+                response.sendError(HttpServletResponse.SC_NOT_FOUND, "No mapping found for URL: " + url);
             }
         } else {
-            res.setStatus(HttpServletResponse.SC_NOT_FOUND);
-            out.println("Error 404 - Aucune méthode associée à l'URL: " + url);
+            response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                    "HashMap is null. Initialization may have failed.");
         }
     }
 
-    private void injectSession(Object instance, HttpServletRequest req) throws IllegalAccessException {
-        Field[] attributs = instance.getClass().getDeclaredFields();
-        for (Field field : attributs) {
-            if (field.getType().equals(MySession.class)) {
-                HttpSession httpSession = req.getSession(true);
-                MySession session = new MySession(httpSession);
-                field.setAccessible(true);
-                field.set(instance, session);
-            }
-        }
+    @Override
+    protected void doGet(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+        processRequest(request, response);
     }
 
-    private Object invokeMethod(Method m, Object instance, HttpServletRequest req, Parameter[] params) throws Exception {
-        if (params.length < 1) {
-            return m.invoke(instance);
-        }
-
-        Object[] parameterValues = new Object[params.length];
-        for (int i = 0; i < params.length; i++) {
-            parameterValues[i] = resolveParameter(req, params[i]);
-        }
-        return m.invoke(instance, parameterValues);
-    }
-
-    private Object resolveParameter(HttpServletRequest req, Parameter param) throws Exception {
-        if (param.getType().equals(MySession.class)) {
-            return new MySession(req.getSession(true));
-        } else if (param.isAnnotationPresent(Param.class)) {
-            return Util.convertParameterValue(req.getParameter(param.getAnnotation(Param.class).name()), param.getType());
-        } else if (param.isAnnotationPresent(ParamObject.class)) {
-            return resolveParamObject(req, param);
-        } else {
-            return Util.convertParameterValue(req.getParameter(param.getName()), param.getType());
-        }
-    }
-
-    private Object resolveParamObject(HttpServletRequest req, Parameter param) throws Exception {
-        ParamObject paramObjectAnnotation = param.getAnnotation(ParamObject.class);
-        Object paramObjectInstance = param.getType().getDeclaredConstructor().newInstance();
-        Field[] fields = param.getType().getDeclaredFields();
-        for (Field field : fields) {
-            String paramValue = req.getParameter(paramObjectAnnotation.objName() + "." + field.getName());
-            field.setAccessible(true);
-            field.set(paramObjectInstance, Util.convertParameterValue(paramValue, field.getType()));
-        }
-        return paramObjectInstance;
-    }
-
-    private void handleResponse(HttpServletResponse res, PrintWriter out, Object result, Method m) throws IOException, ServletException {
-        if (m.isAnnotationPresent(Restapi.class)) {
-            res.setContentType("application/json");
-            Gson gson = new Gson();
-            out.println(gson.toJson(result instanceof ModelView ? ((ModelView) result).getData() : result));
-        } else if (result instanceof ModelView) {
-            ModelView mv = (ModelView) result;
-            String jspPath = mv.getUrl();
-            ServletContext context = getServletContext();
-            String realPath = context.getRealPath(jspPath);
-
-            if (realPath == null || !new File(realPath).exists()) {
-                throw new ServletException("The JSP page " + jspPath + " does not exist.");
-            }
-
-            for (Map.Entry<String, Object> entry : mv.getData().entrySet()) {
-                req.setAttribute(entry.getKey(), entry.getValue());
-            }
-
-            RequestDispatcher dispatch = req.getRequestDispatcher(jspPath);
-            dispatch.forward(req, res);
-        } else if (result instanceof String) {
-            out.println(result);
-        } else {
-            throw new ServletException("Unknown return type: " + result.getClass().getSimpleName());
-        }
+    @Override
+    protected void doPost(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+        processRequest(request, response);
     }
 }

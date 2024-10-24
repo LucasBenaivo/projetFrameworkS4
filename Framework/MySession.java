@@ -1,9 +1,9 @@
-package util;
+package utils;
 
 import javax.servlet.http.HttpSession;
 
 public class MySession {
-    public HttpSession session;
+    private HttpSession session;
 
     public MySession(HttpSession session) {
         this.session = session;

@@ -1,36 +1,30 @@
-package util;
-
-import java.util.HashSet;
-import java.util.Set;
+package utils;
 
 public class Mapping {
+    String methodName;
     String className;
-    Set<VerbAction> verbactions;
+    String verb;
 
-    public Mapping(String className) {
-        this.className = className;
-        this.verbactions = new HashSet<>();
+    public String getMethodName() {
+        return methodName;
     }
 
     public String getClassName() {
         return className;
     }
 
-    public void setClassName(String className) {
+    public String getVerb() {
+        return verb;
+    }
+
+    public Mapping(String methodName, String className) {
+        this.methodName = methodName;
         this.className = className;
     }
 
-    public Set<VerbAction> getVerbactions() {
-        return verbactions;
-    }
-
-    public void addVerbAction(String methodName, String verb) throws Exception {
-        // Vérifiez si le verbe est déjà utilisé
-        for (VerbAction action : verbactions) {
-            if (action.getVerb().equals(verb)) {
-                throw new Exception("HTTP verb " + verb + " already used by method: " + action.getMethodName());
-            }
-        }       
-        verbactions.add(new VerbAction(methodName, verb));
+    public Mapping(String methodName, String className, String verb) {
+        this.methodName = methodName;
+        this.className = className;
+        this.verb = verb;
     }
 }
